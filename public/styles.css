@@ -1,0 +1,93 @@
+:root {
+  color-scheme: light;
+  --ink: #1c1917;
+  --muted: #57534e;
+  --paper: #faf7f2;
+  --card: #ffffff;
+  --line: #e7e0d6;
+  --warn-bg: #fff4e5;
+  --warn-ink: #7c2d12;
+  --warn-line: #fdba74;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.label {
+  display: inline-block;
+  margin: 0 0 1.25rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--warn-line);
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 650;
+}
+
+.lead {
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.routes {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.route {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+
+.route h2 {
+  margin: 0 0 0.25rem;
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.status {
+  margin: 0;
+  color: var(--muted);
+  font-family: system-ui, sans-serif;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.65rem;
+  }
+
+  main {
+    padding-top: 1.5rem;
+  }
+}
