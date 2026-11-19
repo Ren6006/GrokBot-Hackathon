@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "harvard-westlake-volleyball"
-  }
+    "default": "harvard-westlake-volleyball",
+    "dev": "egress-e6e7a"
+  },
+  "targets": {},
+  "etags": {}
 }
