@@ -1,28 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Which evacuation road closes first</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Which evacuation road closes first</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
       <p class="label">Planning aid, not an evacuation order.</p>
       <h1>Which evacuation road closes first</h1>
-      <p class="lead">
-        Compare routes out of town and estimate which one stays open longer as a fire spreads.
-      </p>
-      <section class="routes" aria-label="Route results">
-        <article class="route">
-          <h2>Route A</h2>
-          <p class="status">Not computed yet</p>
-        </article>
-        <article class="route">
-          <h2>Route B</h2>
-          <p class="status">Not computed yet</p>
-        </article>
-      </section>
-    </main>
-  </body>
+      <div class="controls">
+        <button id="locate-btn">Use my location</button>
+        <input id="destination" type="text" placeholder="Destination (optional)" />
+        <button id="analyze-btn" disabled>Analyze routes</button>
+      </div>
+      <p id="status" class="status">Click “Use my location” to start.</p>
+    </header>
+    <div id="map"></div>
+    <aside id="results">
+      <h2>Roads & risk</h2>
+      <div id="route-list">Waiting for location…</div>
+    </aside>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/app.js"></script>
+</body>
 </html>
