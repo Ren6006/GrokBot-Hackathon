@@ -1,11 +1,38 @@
 {
   "hosting": {
     "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/firms",
+        "function": "firms"
+      },
+      {
+        "source": "/api/address",
+        "function": "address"
+      },
+      {
+        "source": "/api/reverse",
+        "function": "reverse"
+      }
+    ]
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git"]
+    }
+  ],
   "emulators": {
     "hosting": {
       "port": 5002
+    },
+    "functions": {
+      "port": 5001
+    },
+    "ui": {
+      "enabled": false
     }
   }
 }

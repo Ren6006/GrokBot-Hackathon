@@ -4,25 +4,35 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Which evacuation road closes first</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main>
+    <div id="map"></div>
+    <header class="panel">
       <p class="label">Planning aid, not an evacuation order.</p>
       <h1>Which evacuation road closes first</h1>
-      <p class="lead">
-        Compare routes out of town and estimate which one stays open longer as a fire spreads.
-      </p>
-      <section class="routes" aria-label="Route results">
-        <article class="route">
-          <h2>Route A</h2>
-          <p class="status">Not computed yet</p>
-        </article>
-        <article class="route">
-          <h2>Route B</h2>
-          <p class="status">Not computed yet</p>
-        </article>
-      </section>
-    </main>
+      <form id="search" autocomplete="off">
+        <label class="sr" for="place">Address</label>
+        <div class="search-box">
+          <input id="place" name="place" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" placeholder="2400 Durant Ave" required />
+          <button id="locate" type="button">Use my location</button>
+        </div>
+        <ul id="suggestions" role="listbox" hidden></ul>
+        <div class="when">
+          <label for="when">Simulate this time</label>
+          <input id="when" name="when" type="datetime-local" />
+        </div>
+      </form>
+      <p id="status" class="status-line" role="status">Search an address to see which roads the fire would close before you could drive them.</p>
+    </header>
+    <div class="legend">
+      <p><span class="swatch open"></span> Reachable if you leave in 30 minutes</p>
+      <p><span class="swatch closed"></span> Fire gets there first</p>
+      <p><span class="swatch fire"></span> Satellite heat detection</p>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/model.js"></script>
+    <script src="/app.js"></script>
   </body>
 </html>
