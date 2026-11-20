@@ -195,6 +195,72 @@ exports.address = onRequest({ cors: true, timeoutSeconds: 20 }, async (req, res)
   }
 });
 
+const OVERPASS_ENDPOINTS = [
+  "https://overpass.openstreetmap.fr/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+
+function overpassQuery(lat, lon) {
+  return (
+    "[out:json][timeout:25];(" +
+    'way["highway"~"^(motorway|trunk|primary|secondary)$"](around:10000,' +
+    lat +
+    "," +
+    lon +
+    ");" +
+    'way["highway"="tertiary"](around:3500,' +
+    lat +
+    "," +
+    lon +
+    "););out tags geom;"
+  );
+}
+
+function roadsFromOverpass(body) {
+  return (body.elements || [])
+    .filter((element) => element.geometry && element.geometry.length > 1)
+    .map((element) => ({
+      name: (element.tags && (element.tags.ref || element.tags.name)) || "Unnamed road",
+      highway: element.tags && element.tags.highway,
+      maxspeed: element.tags && element.tags.maxspeed,
+      points: element.geometry.map((point) => ({ lat: point.lat, lon: point.lon })),
+    }));
+}
+
+exports.roads = onRequest({ cors: true, timeoutSeconds: 60, memory: "512MiB" }, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -85 || lat > 85 || lon < -180 || lon > 180) {
+    res.status(400).json({ error: "Provide a valid latitude and longitude." });
+    return;
+  }
+
+  const query = overpassQuery(lat, lon);
+  let lastStatus = 0;
+  for (const url of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "User-Agent": "WhichEvacuationRoadClosesFirst/1.0 (Firebase Hosting planning aid)",
+        },
+        body: "data=" + encodeURIComponent(query),
+      });
+      lastStatus = response.status;
+      if (!response.ok) continue;
+      const body = await response.json();
+      res.json({ roads: roadsFromOverpass(body) });
+      return;
+    } catch (error) {
+      lastStatus = lastStatus || 502;
+    }
+  }
+  res.status(502).json({ error: "The road map is unavailable." + (lastStatus ? " (" + lastStatus + ")" : "") });
+});
+
 exports.reverse = onRequest({ cors: true, timeoutSeconds: 20 }, async (req, res) => {
   const lat = Number(req.query.lat);
   const lon = Number(req.query.lon);

@@ -13,28 +13,40 @@
       <p class="label">Planning aid, not an evacuation order.</p>
       <h1>Which evacuation road closes first</h1>
       <form id="search" autocomplete="off">
-        <label class="sr" for="place">Address</label>
+        <label class="field-label" for="place">From</label>
         <div class="search-box">
           <input id="place" name="place" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" placeholder="2400 Durant Ave" required />
-          <button id="locate" type="button">Use my location</button>
+          <button id="locate" type="button" class="secondary">Use my location</button>
         </div>
-        <label class="sr" for="destination">Destination</label>
-        <div class="search-box destination-box">
+        <label class="field-label" for="destination">To</label>
+        <div class="search-box">
           <input id="destination" name="destination" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" placeholder="Destination address" />
         </div>
         <ul id="suggestions" role="listbox" hidden></ul>
-        <ol id="route-choices" hidden></ol>
         <div class="when">
           <label for="when">Simulate this time</label>
           <input id="when" name="when" type="datetime-local" />
         </div>
+        <div class="actions">
+          <button id="load-fires" type="button" class="primary">Load fire times</button>
+          <button id="load-routes" type="button" class="accent">Load routes</button>
+        </div>
+        <div class="actions secondary-row">
+          <button id="reset" type="button" class="secondary">Reset</button>
+        </div>
       </form>
-      <p id="status" class="status-line" role="status">Search an address to see which roads the fire would close before you could drive them.</p>
+      <p id="status" class="status-line" role="status">Enter a starting address, then load fire times or add a destination and load routes.</p>
+      <div id="summary" class="summary" hidden></div>
+      <div id="routes" class="routes-panel" hidden>
+        <h2>Route options</h2>
+        <div id="route-list"></div>
+      </div>
     </header>
     <div class="legend">
-      <p><span class="swatch open"></span> Reachable if you leave in 30 minutes</p>
-      <p><span class="swatch closed"></span> Fire gets there first</p>
+      <p class="legend-open"><span class="swatch open"></span> Reachable if you leave within 30 min</p>
+      <p class="legend-closed"><span class="swatch closed"></span> Fire gets there first</p>
       <p><span class="swatch fire"></span> Satellite heat detection</p>
+      <p class="legend-note">Use <strong>Load fire times</strong> to color roads, or <strong>Load routes</strong> to compare drives. Red overlay roads close before you could drive them if you wait 30 minutes to leave.</p>
     </div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/model.js"></script>
