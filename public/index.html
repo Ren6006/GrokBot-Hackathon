@@ -18,7 +18,12 @@
           <input id="place" name="place" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" placeholder="2400 Durant Ave" required />
           <button id="locate" type="button">Use my location</button>
         </div>
+        <label class="sr" for="destination">Destination</label>
+        <div class="search-box destination-box">
+          <input id="destination" name="destination" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" placeholder="Destination address" />
+        </div>
         <ul id="suggestions" role="listbox" hidden></ul>
+        <ol id="route-choices" hidden></ol>
         <div class="when">
           <label for="when">Simulate this time</label>
           <input id="when" name="when" type="datetime-local" />

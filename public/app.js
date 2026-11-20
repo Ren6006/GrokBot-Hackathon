@@ -1,7 +1,9 @@
 const form = document.querySelector("#search");
 const placeInput = document.querySelector("#place");
+const destinationInput = document.querySelector("#destination");
 const locateButton = document.querySelector("#locate");
 const suggestionsNode = document.querySelector("#suggestions");
+const routeChoices = document.querySelector("#route-choices");
 const statusNode = document.querySelector("#status");
 
 const OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter";
@@ -11,11 +13,17 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
 }).addTo(map);
 const drawn = L.layerGroup().addTo(map);
+const routeLayer = L.layerGroup().addTo(map);
 
 let suggestions = [];
 let highlighted = -1;
 let searchTimer = null;
 let requestId = 0;
+let activeInput = placeInput;
+let lastDestination = null;
+let lastHoursUntilFire = null;
+let offeredRoutes = [];
+const ROUTE_COLORS = { Fastest: "#c2410c", Balanced: "#7c3aed", Safest: "#15803d", "Wider detour": "#0369a1" };
 
 function setStatus(message) {
   statusNode.textContent = message;
@@ -32,6 +40,7 @@ function hideSuggestions() {
   suggestionsNode.hidden = true;
   suggestionsNode.replaceChildren();
   placeInput.setAttribute("aria-expanded", "false");
+  destinationInput.setAttribute("aria-expanded", "false");
 }
 
 function renderSuggestions() {
@@ -54,8 +63,8 @@ function renderSuggestions() {
     suggestionsNode.append(item);
   });
   suggestionsNode.hidden = false;
-  placeInput.setAttribute("aria-expanded", "true");
-  placeInput.setAttribute("aria-activedescendant", highlighted >= 0 ? "suggestion-" + highlighted : "");
+  activeInput.setAttribute("aria-expanded", "true");
+  activeInput.setAttribute("aria-activedescendant", highlighted >= 0 ? "suggestion-" + highlighted : "");
 }
 
 async function fetchSuggestions(query) {
@@ -192,6 +201,9 @@ async function loadRoads(lat, lon) {
 
 function drawMap(place, roads, detections, segments) {
   drawn.clearLayers();
+  routeLayer.clearLayers();
+  routeChoices.hidden = true;
+  routeChoices.replaceChildren();
   const openRoads = segments
     ? segments.filter((segment) => !segment.blocked)
     : roads.map((road) => ({ positions: road.points.map((point) => [point.lat, point.lon]) }));
@@ -269,8 +281,10 @@ async function analyzePlace(place) {
 
     if (!detections.length) {
       const windowLabel = asOf ? "5 days before that time" : fires.window === "7d" ? "7 days" : "24 hours";
+      lastHoursUntilFire = null;
       drawMap(place, roads, [], null);
       setStatus(whenLabel(asOf) + "No VIIRS fire detections within about 45 km of " + place.label + " in the last " + windowLabel + ". No road is marked closed.");
+      if (lastDestination) await suggestRoutes();
       return;
     }
 
@@ -279,12 +293,18 @@ async function analyzePlace(place) {
     const [wind, elevation] = await Promise.all([loadWind(fireLat, fireLon, asOf), loadElevation(place.lat, place.lon)]);
     if (ticket !== requestId) return;
     const result = RoadModel.analyze({ town: place, detections, wind, elevation, roads, asOf });
+    lastHoursUntilFire = result.hoursUntilFire || null;
     if (!result.fire) {
       drawMap(place, roads, detections, null);
       setStatus(whenLabel(asOf) + "Detections are outside the roads around " + place.label + ". No road is marked closed.");
+      if (lastDestination) await suggestRoutes();
       return;
     }
     drawMap(place, roads, detections, result.segments);
+    if (lastDestination) {
+      await suggestRoutes();
+      return;
+    }
     const rateLabel = result.rateSource === "observed" ? "The spread rate is measured from satellite passes." : "Only one pass was usable, so the spread rate comes from the wind.";
     if (!result.blockedCount) {
       setStatus(whenLabel(asOf) + "If you leave in 30 minutes, these roads are still reachable before the fire. " + rateLabel);
@@ -306,44 +326,246 @@ async function analyzePlace(place) {
 
 async function chooseSuggestion(suggestion) {
   hideSuggestions();
+  if (activeInput === destinationInput) {
+    lastDestination = suggestion;
+    destinationInput.value = suggestion.label;
+    if (lastPlace) await suggestRoutes();
+    return;
+  }
   await analyzePlace(suggestion);
 }
 
-placeInput.addEventListener("input", () => {
-  window.clearTimeout(searchTimer);
-  const query = placeInput.value.trim();
-  if (query.length < 3) {
-    hideSuggestions();
+function kilometers(a, b) {
+  const lat = ((a[1] + b[1]) / 2) * Math.PI / 180;
+  const dx = (a[0] - b[0]) * 111.32 * Math.cos(lat);
+  const dy = (a[1] - b[1]) * 110.57;
+  return Math.hypot(dx, dy);
+}
+
+function assessRoute(route) {
+  const coordinates = route.geometry.coordinates;
+  const totalM = route.distance;
+  const totalH = route.duration / 3600;
+  let traveled = 0;
+  let unsafeKm = 0;
+  let minSlackH = Infinity;
+  for (let i = 1; i < coordinates.length; i++) {
+    const previous = coordinates[i - 1];
+    const next = coordinates[i];
+    const segmentKm = kilometers(previous, next);
+    const alongH = totalM > 0 ? ((traveled + segmentKm / 2) / (totalM / 1000)) * totalH : 0;
+    const fireH = lastHoursUntilFire ? lastHoursUntilFire(next[1], next[0]) : Infinity;
+    const slack = fireH - (0.5 + alongH);
+    minSlackH = Math.min(minSlackH, slack);
+    if (slack < 0) unsafeKm += segmentKm;
+    traveled += segmentKm;
+  }
+  return {
+    durationMin: route.duration / 60,
+    distanceKm: totalM / 1000,
+    unsafeKm,
+    minSlackH,
+    coordinates,
+  };
+}
+
+function safetyScore(option) {
+  if (!Number.isFinite(option.minSlackH)) return 1000 - option.durationMin / 60;
+  if (option.minSlackH < 0) return option.minSlackH - option.unsafeKm;
+  return option.minSlackH;
+}
+
+function sameTrip(a, b) {
+  return Math.abs(a.durationMin - b.durationMin) < 1.5 && Math.abs(a.unsafeKm - b.unsafeKm) < 0.4;
+}
+
+function viaPoint(origin, destination, fire, kilometers, towardFire) {
+  const midLat = (origin.lat + destination.lat) / 2;
+  const midLon = (origin.lon + destination.lon) / 2;
+  const lonScale = 111.32 * Math.cos((midLat * Math.PI) / 180);
+  const dx = (destination.lon - origin.lon) * lonScale;
+  const dy = (destination.lat - origin.lat) * 110.57;
+  const length = Math.hypot(dx, dy) || 1;
+  let sideX = -dy / length;
+  let sideY = dx / length;
+  const fireX = (fire.lon - midLon) * lonScale;
+  const fireY = (fire.lat - midLat) * 110.57;
+  const pointsAtFire = sideX * fireX + sideY * fireY > 0;
+  if (pointsAtFire !== towardFire) {
+    sideX *= -1;
+    sideY *= -1;
+  }
+  return { lon: midLon + (sideX * kilometers) / lonScale, lat: midLat + (sideY * kilometers) / 110.57 };
+}
+
+function beyondFire(origin, destination, fire, kilometers) {
+  const midLon = (origin.lon + destination.lon) / 2;
+  const midLat = (origin.lat + destination.lat) / 2;
+  const lonScale = 111.32 * Math.cos((fire.lat * Math.PI) / 180);
+  let dx = (fire.lon - midLon) * lonScale;
+  let dy = (fire.lat - midLat) * 110.57;
+  const length = Math.hypot(dx, dy) || 1;
+  dx /= length;
+  dy /= length;
+  return { lon: fire.lon + (dx * kilometers) / lonScale, lat: fire.lat + (dy * kilometers) / 110.57 };
+}
+
+async function drivingRoute(points) {
+  const path = points.map((point) => point.lon + "," + point.lat).join(";");
+  const response = await fetch("https://router.project-osrm.org/route/v1/driving/" + path + "?overview=full&geometries=geojson");
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.code !== "Ok" || !body.routes || !body.routes[0]) return null;
+  return assessRoute(body.routes[0]);
+}
+
+function describeRoute(option) {
+  const time = Math.round(option.durationMin) + " min, " + option.distanceKm.toFixed(1) + " km";
+  if (option.unsafeKm >= 0.3) {
+    return time + ". About " + option.unsafeKm.toFixed(1) + " km is closed before you get there.";
+  }
+  if (!Number.isFinite(option.minSlackH) || option.minSlackH > 30) {
+    return time + ". The fire does not reach this drive.";
+  }
+  return time + ". You stay about " + Math.max(1, Math.round(option.minSlackH * 60)) + " min ahead of the fire.";
+}
+
+function drawRouteChoices(selectedIndex) {
+  routeLayer.clearLayers();
+  offeredRoutes.forEach((option, index) => {
+    L.polyline(option.coordinates.map((point) => [point[1], point[0]]), {
+      color: ROUTE_COLORS[option.name],
+      weight: index === selectedIndex ? 7 : 4,
+      opacity: index === selectedIndex ? 0.95 : 0.55,
+    }).addTo(routeLayer);
+  });
+  L.circleMarker([lastDestination.lat, lastDestination.lon], {
+    radius: 7,
+    color: "#111827",
+    weight: 2,
+    fillColor: "#f8fafc",
+    fillOpacity: 1,
+  })
+    .bindTooltip(lastDestination.label, { permanent: false })
+    .addTo(routeLayer);
+  routeChoices.replaceChildren();
+  offeredRoutes.forEach((option, index) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "route-option" + (index === selectedIndex ? " selected" : "");
+    button.style.borderLeftColor = ROUTE_COLORS[option.name];
+    const title = document.createElement("strong");
+    title.textContent = option.name;
+    const detail = document.createElement("span");
+    detail.textContent = describeRoute(option);
+    button.append(title, detail);
+    button.addEventListener("click", () => drawRouteChoices(index));
+    item.append(button);
+    routeChoices.append(item);
+  });
+  routeChoices.hidden = false;
+  const bounds = L.latLngBounds(offeredRoutes.flatMap((option) => option.coordinates.map((point) => [point[1], point[0]])));
+  map.fitBounds(bounds.pad(0.2), { paddingTopLeft: [20, 180], maxZoom: 13 });
+}
+
+async function suggestRoutes() {
+  if (!lastPlace || !lastDestination) return;
+  setStatus("Comparing three drives from " + lastPlace.label + " to " + lastDestination.label + "…");
+  const fire = lastHoursUntilFire ? { lat: lastPlace.lat, lon: lastPlace.lon } : lastPlace;
+  let firePoint = fire;
+  if (lastHoursUntilFire) {
+    const step = 0.02;
+    let hottest = Infinity;
+    for (let lat = lastPlace.lat - 0.3; lat <= lastPlace.lat + 0.3; lat += step) {
+      for (let lon = lastPlace.lon - 0.3; lon <= lastPlace.lon + 0.3; lon += step) {
+        const hours = lastHoursUntilFire(lat, lon);
+        if (hours < hottest) {
+          hottest = hours;
+          firePoint = { lat, lon };
+        }
+      }
+    }
+  }
+  const paths = [[{ ...lastPlace }, { ...lastDestination }]];
+  [
+    viaPoint(lastPlace, lastDestination, firePoint, 4, false),
+    viaPoint(lastPlace, lastDestination, firePoint, 12, false),
+    viaPoint(lastPlace, lastDestination, firePoint, 6, true),
+    beyondFire(lastPlace, lastDestination, firePoint, 8),
+  ].forEach((via) => paths.push([{ ...lastPlace }, via, { ...lastDestination }]));
+  const assessed = [];
+  for (const points of paths) {
+    const option = await drivingRoute(points);
+    if (!option) continue;
+    if (assessed.some((existing) => sameTrip(existing, option))) continue;
+    assessed.push(option);
+  }
+  if (!assessed.length) {
+    setStatus("No driving route was found between those addresses.");
     return;
   }
-  searchTimer = window.setTimeout(async () => {
-    try {
-      suggestions = await fetchSuggestions(query);
-      highlighted = suggestions.length ? 0 : -1;
-      renderSuggestions();
-    } catch (error) {
-      hideSuggestions();
-      setStatus(error.message);
-    }
-  }, 250);
-});
+  const ordered = assessed.slice().sort((a, b) => a.durationMin - b.durationMin);
+  const picked = ordered.length <= 3 ? ordered : [ordered[0], ordered[Math.floor(ordered.length / 2)], ordered[ordered.length - 1]];
+  const fastest = picked[0];
+  const safest = picked.reduce((best, option) => (safetyScore(option) > safetyScore(best) ? option : best));
+  const actuallySafer = safetyScore(safest) > safetyScore(fastest) + 0.15;
+  const named = picked.map((option) => {
+    let name = "Balanced";
+    if (option === fastest) name = "Fastest";
+    else if (option === safest && actuallySafer) name = "Safest";
+    else if (option.durationMin === picked[picked.length - 1].durationMin) name = "Wider detour";
+    return Object.assign({}, option, { name });
+  });
+  offeredRoutes = named;
+  const preferred = named.findIndex((option) => option.name === "Safest" || option.name === "Balanced");
+  drawRouteChoices(preferred >= 0 ? preferred : 0);
+  const names = named.map((option) => option.name.toLowerCase()).join(", ");
+  setStatus(named.length + " routes to " + lastDestination.label + ": " + names + ". Each one shows the drive time and how much of it the fire closes before you arrive.");
+}
 
-placeInput.addEventListener("keydown", async (event) => {
-  if (event.key === "ArrowDown" && suggestions.length) {
-    event.preventDefault();
-    highlighted = (highlighted + 1) % suggestions.length;
-    renderSuggestions();
-  } else if (event.key === "ArrowUp" && suggestions.length) {
-    event.preventDefault();
-    highlighted = (highlighted - 1 + suggestions.length) % suggestions.length;
-    renderSuggestions();
-  } else if (event.key === "Escape") {
-    hideSuggestions();
-  } else if (event.key === "Enter" && suggestions.length && highlighted >= 0) {
-    event.preventDefault();
-    await chooseSuggestion(suggestions[highlighted]);
-  }
-});
+function watchAddress(input) {
+  input.addEventListener("focus", () => {
+    activeInput = input;
+  });
+  input.addEventListener("input", () => {
+    activeInput = input;
+    window.clearTimeout(searchTimer);
+    const query = input.value.trim();
+    if (query.length < 3) {
+      hideSuggestions();
+      return;
+    }
+    searchTimer = window.setTimeout(async () => {
+      try {
+        suggestions = await fetchSuggestions(query);
+        highlighted = suggestions.length ? 0 : -1;
+        renderSuggestions();
+      } catch (error) {
+        hideSuggestions();
+        setStatus(error.message);
+      }
+    }, 250);
+  });
+  input.addEventListener("keydown", async (event) => {
+    if (event.key === "ArrowDown" && suggestions.length) {
+      event.preventDefault();
+      highlighted = (highlighted + 1) % suggestions.length;
+      renderSuggestions();
+    } else if (event.key === "ArrowUp" && suggestions.length) {
+      event.preventDefault();
+      highlighted = (highlighted - 1 + suggestions.length) % suggestions.length;
+      renderSuggestions();
+    } else if (event.key === "Escape") {
+      hideSuggestions();
+    } else if (event.key === "Enter" && suggestions.length && highlighted >= 0) {
+      event.preventDefault();
+      await chooseSuggestion(suggestions[highlighted]);
+    }
+  });
+}
+
+watchAddress(placeInput);
+watchAddress(destinationInput);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -351,7 +573,9 @@ form.addEventListener("submit", async (event) => {
     await chooseSuggestion(suggestions[highlighted >= 0 ? highlighted : 0]);
     return;
   }
-  const query = placeInput.value.trim();
+  const field = document.activeElement === destinationInput ? destinationInput : placeInput;
+  activeInput = field;
+  const query = field.value.trim();
   if (query.length < 3) return;
   try {
     const matches = await fetchSuggestions(query);

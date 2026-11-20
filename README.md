@@ -9,6 +9,7 @@ A planning aid for people in fire-prone areas, and for the sheriffs who plan eva
 1. Type a street address the way you would in Google Maps, for example `2400 Durant Ave` or `15300 Sunset Blvd, Pacific Palisades`. Suggestions appear as you type. You can also use **Use my location**.
 2. Optionally set **Simulate this time**. Leave it empty for the live feed. Set it to a past date and time and the site pretends that moment is now. This is how the Palisades fire can be shown at a hackathon: `January 8, 2025, 2:00 PM` at a Pacific Palisades address marks roads the fire would have cut off.
 3. The map draws OpenStreetMap roads and VIIRS heat detections. A road turns **red** when the fire would reach it before you could drive past it, if you waited 30 minutes to start driving. Roads that stay **blue** are still reachable on that head start.
+4. Add a destination address. The site then offers up to three drives: **Fastest** (shortest time), **Safest** (most time ahead of the fire), and **Balanced** (between them). Each card states the drive time and whether any of that route is already closed before you would reach it. Select a card to highlight that line.
 
 Checked examples:
 

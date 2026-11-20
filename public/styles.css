@@ -76,6 +76,46 @@ form {
   gap: 0.4rem;
 }
 
+.destination-box {
+  margin-top: 0.45rem;
+}
+
+.panel {
+  max-height: calc(100% - 1.6rem);
+  overflow: auto;
+}
+
+#route-choices {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+}
+
+.route-option {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-left: 5px solid #7c3aed;
+  white-space: normal;
+}
+
+.route-option strong {
+  display: block;
+}
+
+.route-option span {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.route-option.selected {
+  outline: 2px solid #1c1917;
+}
+
 input,
 button {
   font: inherit;

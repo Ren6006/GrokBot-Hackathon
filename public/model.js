@@ -696,6 +696,13 @@
     const segments = classifyRoads(projectedRoads, town, origin, grid, elapsedHours);
     const blockedCount = segments.filter((segment) => segment.blocked).length;
 
+    function hoursUntilFire(lat, lon) {
+      const point = project(lat, lon, origin);
+      const raw = arrivalAt([point], grid);
+      if (!Number.isFinite(raw)) return Infinity;
+      return raw - elapsedHours;
+    }
+
     return {
       fire: true,
       detectionCount: cluster.length,
@@ -706,6 +713,7 @@
       slopeUsed: Boolean(slopeAt),
       segments,
       blockedCount,
+      hoursUntilFire,
     };
   }
 
