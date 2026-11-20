@@ -1,5 +1,20 @@
 # Which Evacuation Road Closes First
 
+
+
+** IMPORTANT FOR JUDGES **
+Please use date 01/08/2025, around 2:00 PM (can change time) and an address within the Santa Monica/Palisades area if you'd like to test the deployment. Two examples of addresses that are interesting to look at are:
+15300 Sunset Boulevard, Pacific Palisades, CA
+and, 951 Ocean Avenue, Santa Monica, California
+and a possible destination is Main Street, Santa Monica, California
+
+I recommend clicking "Load Fire Times" first
+
+You can also use current time/don't input any time.
+
+I pinky promise it's real data but the NASA dataset we used only goes back 1 week and there weren't any interesting wildfires recently, so I had to manually request access to the time period of the Los Angeles Palisades fires so we can demonstrate the functionality.
+** IMPORTANT PART DONE **
+
 **Planning aid, not an evacuation order.**
 
 When a wildfire is approaching, a map showing the current location of the fire does not answer the critical question: which evacuation routes will remain open long enough to use?
